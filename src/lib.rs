@@ -1,10 +1,4 @@
-#![warn(
-    clippy::all,
-    clippy::restriction,
-    clippy::pedantic,
-    clippy::nursery,
-    clippy::cargo
-)]
+#![warn(clippy::all, clippy::pedantic)]
 
 use core::slice;
 use core::{alloc::Layout, fmt::Display, ptr::null_mut};
@@ -19,8 +13,10 @@ pub struct Str {
 }
 
 impl Str {
-    pub fn from(s: &str) -> Self {
-        let bytes = s.as_bytes();
+    #[inline]
+    #[must_use]
+    pub fn from(str: &str) -> Self {
+        let bytes = str.as_bytes();
         let _len = bytes.len();
         debug_assert!(
             _len < u32::MAX as usize,
@@ -49,18 +45,26 @@ impl Str {
         }
     }
 
+    #[inline(always)]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.len as usize
     }
 
+    #[inline(always)]
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
+    #[inline(always)]
+    #[must_use]
     pub fn capacity(&self) -> usize {
         self.len as usize + self.capacity_offset as usize
     }
 
+    #[inline]
+    #[must_use]
     pub fn starts_with(&self, other: &Str) -> bool {
         if other.len > self.len {
             return false;
@@ -94,6 +98,7 @@ pub trait StartsWithStr {
 }
 
 impl StartsWithStr for Str {
+    #[inline]
     fn starts_with(&self, other: &str) -> bool {
         if other.len() > self.len() {
             return false;
@@ -118,10 +123,10 @@ impl StartsWithStr for Str {
 
 impl core::ops::Index<usize> for Str {
     type Output = u8;
+
+    #[inline]
     fn index(&self, index: usize) -> &u8 {
-        if index >= self.len() {
-            panic!("Indexing outside of string length!");
-        }
+        assert!(!(index >= self.len()), "Indexing outside of string length!");
 
         if index >= PREFIX_LENGTH {
             unsafe { return &*self.suffix.add(index - PREFIX_LENGTH) }
@@ -131,6 +136,7 @@ impl core::ops::Index<usize> for Str {
 }
 
 impl PartialEq for Str {
+    #[inline]
     fn eq(&self, other: &Str) -> bool {
         if self.len != other.len {
             return false;
@@ -154,6 +160,7 @@ impl PartialEq for Str {
     }
 }
 impl Display for Str {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let prefix_str;
         let mut suffix_str = "";
@@ -166,11 +173,12 @@ impl Display for Str {
                     core::str::from_utf8_unchecked(slice::from_raw_parts(self.suffix, ptr_len));
             }
         }
-        write!(f, "{}{}", prefix_str, suffix_str)
+        write!(f, "{prefix_str}{suffix_str}")
     }
 }
 
 impl core::fmt::Debug for Str {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
