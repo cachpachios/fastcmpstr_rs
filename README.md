@@ -43,12 +43,13 @@ Here we need to walk char by char to check the starts_with operation. For `std::
 
 This ofcourse can be even more notable when you have a `Vec<String>` vs `Vec<Str>` and want to find all elements that fullfills any comparision. Using String requires _potentially_ indirection at every step. Our implementation _potentially_ does not.
 
+### Bonus: Small string optimization
+Infact, this is also a small string optimization, which notably `std::string::String` does not do... Although an inefficient one since only 10 out of our 24 bytes are usuable. Any strings with byte length smaller or equal to 10 will be kept entirely on the stack, which means no heap allocation is needed.
+
 ## Benchmarks against `std::string::String`
 
 TODO
 
-### Bonus: Small string optimization
-Infact, this is also a small string optimization, which notably `std::string::String` does not do... Although an inefficient one since only 10 out of our 24 bytes are usuable. Any strings with byte length smaller or equal to 10 will be kept entirely on the stack, which means no heap allocation is needed.
 
 ## TLDR: When should I use this?
 
