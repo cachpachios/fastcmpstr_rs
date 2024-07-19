@@ -47,12 +47,20 @@ This ofcourse can be even more notable when you have a `Vec<String>` vs `Vec<Str
 Infact, this is also a small string optimization, which notably `std::string::String` does not do... Although an inefficient one since only 10 out of our 24 bytes are usuable. Any strings with byte length smaller or equal to 10 will be kept entirely on the stack, which means no heap allocation is needed.
 
 ## Benchmarks against `std::string::String`
+Run `cargo bench` for details and HW specific numbers.
+
+### Equality on same length string
+
+In general: We see a **~2.5x** improvement in performance for random strings in an equality test. 
+If there all strings have atleast 10 bytes in common and we need to dereference our suffix we see a **~0.8x** decrease in performance.
+
+
+### starts_with
 
 TODO
 
-
 ## TLDR: When should I use this?
 
-Whenever you compare strings alot.
+Whenever you compare strings alot that dont tend to all start with the same 10 bytes.
 
 Ofcourse this is just a "learning" project. I bet there are multiple better crates available... So in practice never?
