@@ -142,17 +142,15 @@ impl PartialEq for Str {
             return false;
         }
 
-        for i in 0..self.len.min(PREFIX_LENGTH as u32) {
-            if self.prefix[i as usize] != other.prefix[i as usize] {
-                return false;
-            }
+        if self.prefix != other.prefix {
+            return false;
         }
 
-        if self.len > 3 {
+        if self.len > PREFIX_LENGTH as u32 {
             let ptr_len = self.len as usize - PREFIX_LENGTH;
             unsafe {
                 let a = slice::from_raw_parts(self.suffix, ptr_len);
-                let b = slice::from_raw_parts(self.suffix, ptr_len);
+                let b = slice::from_raw_parts(other.suffix, ptr_len);
                 return a == b; // TODO: Perf maybe more efficient to handcraft.
             }
         }
@@ -195,6 +193,8 @@ impl core::fmt::Debug for Str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
 
     const LONG_STR: &str = "this is a longer string that will primarly be in the suffix";
     const LONG_STR2: &str = "let me tell you a story when unsafe went very wrong...";
@@ -269,6 +269,32 @@ mod tests {
         assert_eq!(a, a);
         assert_eq!(b, b);
         assert_ne!(a, b);
+    }
+
+    fn rand_str(rand_len: usize) -> String {
+        let r: String = thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(rand_len)
+            .map(char::from)
+            .collect();
+
+        return r;
+    }
+
+    #[test]
+    fn test_eq_rand() {
+        for i in 0..100 {
+            for _ in 0..100 {
+                let s = rand_str(i);
+                let a = Str::from(&s);
+                let a2 = Str::from(&format!("{}^", s));
+                let b = Str::from(&s);
+                let b2 = Str::from(&format!("{}_", s));
+
+                assert_eq!(a, b);
+                assert_ne!(a2, b2);
+            }
+        }
     }
 
     #[test]

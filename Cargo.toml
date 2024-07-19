@@ -4,3 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+
+[dev-dependencies]
+criterion = {version = "0.5.1", features = ["html_reports"]}
+rand = "0.8.5"
+
+[[bench]]
+name = "benchmarks"
+harness = false
