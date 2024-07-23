@@ -96,7 +96,7 @@ impl Str {
         }
     }
 
-    fn reserve(&mut self, request: usize) {
+    pub fn reserve(&mut self, request: usize) {
         let prefix_extra_capactiy = PREFIX_LENGTH - PREFIX_LENGTH.min(self.len as usize);
         let current_extra_capacity = self.capacity_offset as usize + prefix_extra_capactiy;
         if current_extra_capacity >= request {
@@ -106,8 +106,8 @@ impl Str {
             request < CapacityOffsetType::MAX as usize,
             "Reserve is above capacity limit."
         );
-        let new_cap_offset = request - current_extra_capacity;
-        let new_ptr_len = self.len as usize + new_cap_offset;
+        //TODO?: Presumptive over allocation? (and differentiation with reserve_exact)
+        let new_ptr_len = self.len as usize + request;
 
         let new_mem;
 
@@ -118,13 +118,16 @@ impl Str {
                 core::ptr::copy(self.suffix, new_mem, self.len as usize - PREFIX_LENGTH);
             }
             if !self.suffix.is_null() {
-                let old_total_cap = self.len + self.capacity_offset - PREFIX_LENGTH;
-                std::alloc::dealloc(ptr, Layout::array::<u8>(old_total_cap)).unwrap()
+                let old_total_cap =
+                    self.len as usize + self.capacity_offset as usize - PREFIX_LENGTH;
+                std::alloc::dealloc(
+                    self.suffix,
+                    Layout::array::<u8>(old_total_cap as usize).unwrap(),
+                )
             }
         }
         self.suffix = new_mem;
-        self.capacity_offset = new_cap_offset as u16;
-        // if old_ptr:
+        self.capacity_offset = request as u16;
     }
 }
 
@@ -363,5 +366,41 @@ mod tests {
         assert!(a.starts_with(&a_shorter));
         assert!(a_short.starts_with(&a_shorter));
         assert!(a_shorter.starts_with(&a_shorter))
+    }
+
+    #[test]
+    fn test_reserve_unmodified() {
+        let mut s = Str::from(LONG_STR);
+        assert_eq!(s.capacity_offset, 0);
+        let curr_ptr = s.suffix;
+        s.reserve(128);
+        assert_eq!(s.to_string(), LONG_STR);
+        assert_ne!(s.suffix, curr_ptr);
+        assert_eq!(s.capacity_offset, 128);
+    }
+
+    #[test]
+    fn test_reserve_multiple_no_sideeffects() {
+        let mut s = Str::from(LONG_STR);
+        assert_eq!(s.capacity_offset, 0);
+        for _ in 0..10 {
+            s.reserve(128);
+        }
+        for i in 0..128 {
+            s.reserve(i);
+        }
+        assert_eq!(s.to_string(), LONG_STR);
+        assert_eq!(s.capacity_offset, 128);
+    }
+
+    #[test]
+    fn test_reserve_expand() {
+        let mut s = Str::from(LONG_STR);
+        assert_eq!(s.capacity_offset, 0);
+        for i in [128, 256, 512, 1024] {
+            s.reserve(i);
+            assert_eq!(s.capacity_offset, i as u16);
+            assert_eq!(s.to_string(), LONG_STR);
+        }
     }
 }
