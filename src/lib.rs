@@ -96,7 +96,7 @@ impl Str {
         }
     }
 
-    pub fn reserve(&mut self, request: usize) {
+    pub fn reserve_exact(&mut self, request: usize) {
         let prefix_extra_capactiy = PREFIX_LENGTH - PREFIX_LENGTH.min(self.len as usize);
         let current_extra_capacity = self.capacity_offset as usize + prefix_extra_capactiy;
         if current_extra_capacity >= request {
@@ -106,7 +106,6 @@ impl Str {
             request < CapacityOffsetType::MAX as usize,
             "Reserve is above capacity limit."
         );
-        //TODO?: Presumptive over allocation? (and differentiation with reserve_exact)
         let new_ptr_len = self.len as usize + request;
 
         let new_mem;
@@ -128,6 +127,11 @@ impl Str {
         }
         self.suffix = new_mem;
         self.capacity_offset = request as u16;
+    }
+
+    pub fn reserve(&mut self, request: usize) {
+        //TODO?: Presumptive over allocation? (and differentiation with reserve_exact)
+        self.reserve_exact(request);
     }
 }
 
@@ -369,36 +373,36 @@ mod tests {
     }
 
     #[test]
-    fn test_reserve_unmodified() {
+    fn test_reserve_exact_str_is_unmodified() {
         let mut s = Str::from(LONG_STR);
         assert_eq!(s.capacity_offset, 0);
         let curr_ptr = s.suffix;
-        s.reserve(128);
+        s.reserve_exact(128);
         assert_eq!(s.to_string(), LONG_STR);
         assert_ne!(s.suffix, curr_ptr);
         assert_eq!(s.capacity_offset, 128);
     }
 
     #[test]
-    fn test_reserve_multiple_no_sideeffects() {
+    fn test_reserve_exact_multiple_no_sideeffects() {
         let mut s = Str::from(LONG_STR);
         assert_eq!(s.capacity_offset, 0);
         for _ in 0..10 {
-            s.reserve(128);
+            s.reserve_exact(128);
         }
         for i in 0..128 {
-            s.reserve(i);
+            s.reserve_exact(i);
         }
         assert_eq!(s.to_string(), LONG_STR);
         assert_eq!(s.capacity_offset, 128);
     }
 
     #[test]
-    fn test_reserve_expand() {
+    fn test_reserve_exact_expand() {
         let mut s = Str::from(LONG_STR);
         assert_eq!(s.capacity_offset, 0);
         for i in [128, 256, 512, 1024] {
-            s.reserve(i);
+            s.reserve_exact(i);
             assert_eq!(s.capacity_offset, i as u16);
             assert_eq!(s.to_string(), LONG_STR);
         }
