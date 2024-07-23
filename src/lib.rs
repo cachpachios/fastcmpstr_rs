@@ -3,9 +3,9 @@
 use core::slice;
 use core::{alloc::Layout, fmt::Display, ptr::null_mut};
 
-const PREFIX_LENGTH: usize = 10;
-type CapacityOffsetType = u16;
 type LenType = u32;
+type CapacityOffsetType = u16;
+const PREFIX_LENGTH: usize = 10;
 
 #[repr(C)]
 pub struct Str {
@@ -16,6 +16,21 @@ pub struct Str {
 }
 
 impl Str {
+    pub fn new() -> Self {
+        Self {
+            len: 0,
+            prefix: [0; PREFIX_LENGTH],
+            capacity_offset: 0,
+            suffix: std::ptr::null_mut(),
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        let mut s = Self::new();
+        s.reserve_exact(capacity);
+        s
+    }
+
     #[inline]
     #[must_use]
     pub fn from(str: &str) -> Self {
@@ -106,7 +121,8 @@ impl Str {
             request < CapacityOffsetType::MAX as usize,
             "Reserve is above capacity limit."
         );
-        let new_ptr_len = self.len as usize + request;
+        let new_cap_offset = request - prefix_extra_capactiy;
+        let new_ptr_len = self.len as usize + new_cap_offset;
 
         let new_mem;
 
@@ -126,7 +142,7 @@ impl Str {
             }
         }
         self.suffix = new_mem;
-        self.capacity_offset = request as u16;
+        self.capacity_offset = new_cap_offset as u16;
     }
 
     pub fn reserve(&mut self, request: usize) {
@@ -240,6 +256,20 @@ mod tests {
 
     const LONG_STR: &str = "this is a longer string that will primarly be in the suffix";
     const LONG_STR2: &str = "let me tell you a story when unsafe went very wrong...";
+
+    #[test]
+    fn test_new() {
+        let s = Str::new();
+        assert_eq!(s.len(), 0);
+        assert_eq!(s.capacity(), PREFIX_LENGTH);
+    }
+
+    #[test]
+    fn test_with_capacity() {
+        let s = Str::with_capacity(1024);
+        assert_eq!(s.len(), 0);
+        assert_eq!(s.capacity(), 1024);
+    }
 
     #[test]
     fn test_from_empty() {
