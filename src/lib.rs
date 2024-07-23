@@ -149,6 +149,34 @@ impl Str {
         //TODO?: Presumptive over allocation? (and differentiation with reserve_exact)
         self.reserve_exact(request);
     }
+
+    pub fn push(&mut self, str: &str) {
+        self.reserve_exact(str.len());
+        let prefix_extra_capactiy = PREFIX_LENGTH - PREFIX_LENGTH.min(self.len as usize);
+
+        let str_ptr = str.as_ptr();
+
+        if prefix_extra_capactiy > 0 {
+            unsafe {
+                core::ptr::copy(
+                    str_ptr,
+                    self.prefix.as_mut_ptr().add(self.len()),
+                    prefix_extra_capactiy,
+                );
+            }
+        }
+        if str.len() > prefix_extra_capactiy {
+            unsafe {
+                core::ptr::copy(
+                    str_ptr.add(prefix_extra_capactiy),
+                    self.suffix
+                        .add(0.max(self.len as isize - PREFIX_LENGTH as isize) as usize),
+                    str.len() - prefix_extra_capactiy,
+                );
+            }
+        }
+        self.len += str.len() as u32;
+    }
 }
 
 pub trait StartsWithStr {
@@ -436,5 +464,12 @@ mod tests {
             assert_eq!(s.capacity_offset, i as u16);
             assert_eq!(s.to_string(), LONG_STR);
         }
+    }
+
+    #[test]
+    fn test_push() {
+        let mut s = Str::new();
+        s.push(LONG_STR);
+        assert_eq!(s.to_string(), LONG_STR);
     }
 }
