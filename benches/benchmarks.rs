@@ -49,5 +49,33 @@ fn bench_eq(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, bench_eq);
+fn bench_contains(c: &mut Criterion) {
+    for i in [0, 8, 16, 32] {
+        let std_strs: Vec<String> = (0..10000).map(|_| rand_str(i, 64 - i)).collect();
+        let strs: Vec<Str> = std_strs.iter().map(|s| Str::from(&s)).collect();
+
+        let mut group = c.benchmark_group(&format!("Contains_10k_{}_static_{}_rand", i, 64 - i));
+        group.bench_function("fastcmpstr::Str", |b| {
+            b.iter(|| {
+                let mut x = 0;
+                for a in &strs {
+                    x += strs.contains(a) as i32;
+                }
+                return x;
+            })
+        });
+
+        group.bench_function("std::string::String", |b| {
+            b.iter(|| {
+                let mut x = 0;
+                for a in &std_strs {
+                    x += std_strs.contains(a) as i32;
+                }
+                return x;
+            })
+        });
+    }
+}
+
+criterion_group!(benches, bench_eq, bench_contains);
 criterion_main!(benches);
