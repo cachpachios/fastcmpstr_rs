@@ -4,11 +4,14 @@ use core::slice;
 use core::{alloc::Layout, fmt::Display, ptr::null_mut};
 
 const PREFIX_LENGTH: usize = 10;
+type CapacityOffsetType = u16;
+type LenType = u32;
+
 #[repr(C)]
 pub struct Str {
-    len: u32,
+    len: LenType,
     prefix: [u8; PREFIX_LENGTH],
-    capacity_offset: u16,
+    capacity_offset: CapacityOffsetType,
     suffix: *mut u8, // len + capacity_offset
 }
 
@@ -19,17 +22,17 @@ impl Str {
         let bytes = str.as_bytes();
         let _len = bytes.len();
         debug_assert!(
-            _len < u32::MAX as usize,
-            "Size of string is above u32 limit."
+            _len < LenType::MAX as usize,
+            "Size of string is above LenType limit."
         );
-        let len = _len as u32;
+        let len = _len as LenType;
         let mut prefix: [u8; PREFIX_LENGTH] = [0; PREFIX_LENGTH];
         let mut suffix: *mut u8 = null_mut();
 
         let prefix_len = _len.min(PREFIX_LENGTH);
         prefix[..prefix_len].copy_from_slice(&bytes[..prefix_len]);
 
-        if len > PREFIX_LENGTH as u32 {
+        if len > PREFIX_LENGTH as LenType {
             let ptr_len = len as usize - PREFIX_LENGTH;
             unsafe {
                 suffix = std::alloc::alloc(Layout::array::<u8>(ptr_len).unwrap()); //TODO: Unsafe unwrap?
@@ -60,7 +63,8 @@ impl Str {
     #[inline(always)]
     #[must_use]
     pub fn capacity(&self) -> usize {
-        self.len as usize + self.capacity_offset as usize
+        let prefix_extra_capactiy = PREFIX_LENGTH - PREFIX_LENGTH.min(self.len as usize);
+        self.len as usize + self.capacity_offset as usize + prefix_extra_capactiy
     }
 
     #[inline]
@@ -78,7 +82,7 @@ impl Str {
             return false;
         }
 
-        if self.len <= PREFIX_LENGTH as u32 || other.len <= PREFIX_LENGTH as u32 {
+        if self.len <= PREFIX_LENGTH as LenType || other.len <= PREFIX_LENGTH as LenType {
             return true;
         }
 
@@ -90,6 +94,37 @@ impl Str {
 
             self_suffix.starts_with(other_suffix)
         }
+    }
+
+    fn reserve(&mut self, request: usize) {
+        let prefix_extra_capactiy = PREFIX_LENGTH - PREFIX_LENGTH.min(self.len as usize);
+        let current_extra_capacity = self.capacity_offset as usize + prefix_extra_capactiy;
+        if current_extra_capacity >= request {
+            return;
+        }
+        debug_assert!(
+            request < CapacityOffsetType::MAX as usize,
+            "Reserve is above capacity limit."
+        );
+        let new_cap_offset = request - current_extra_capacity;
+        let new_ptr_len = self.len as usize + new_cap_offset;
+
+        let new_mem;
+
+        unsafe {
+            new_mem = std::alloc::alloc(Layout::array::<u8>(new_ptr_len).unwrap()); //TODO: Unsafe unwrap?
+
+            if self.len > PREFIX_LENGTH as u32 {
+                core::ptr::copy(self.suffix, new_mem, self.len as usize - PREFIX_LENGTH);
+            }
+            if !self.suffix.is_null() {
+                let old_total_cap = self.len + self.capacity_offset - PREFIX_LENGTH;
+                std::alloc::dealloc(ptr, Layout::array::<u8>(old_total_cap)).unwrap()
+            }
+        }
+        self.suffix = new_mem;
+        self.capacity_offset = new_cap_offset as u16;
+        // if old_ptr:
     }
 }
 
@@ -146,7 +181,7 @@ impl PartialEq for Str {
             return false;
         }
 
-        if self.len > PREFIX_LENGTH as u32 {
+        if self.len > PREFIX_LENGTH as LenType {
             let ptr_len = self.len as usize - PREFIX_LENGTH;
             unsafe {
                 let a = slice::from_raw_parts(self.suffix, ptr_len);
@@ -165,7 +200,7 @@ impl Display for Str {
         unsafe {
             prefix_str =
                 core::str::from_utf8_unchecked(&self.prefix[0..PREFIX_LENGTH.min(self.len())]);
-            if self.len > PREFIX_LENGTH as u32 {
+            if self.len > PREFIX_LENGTH as LenType {
                 let ptr_len = self.len as usize - PREFIX_LENGTH;
                 suffix_str =
                     core::str::from_utf8_unchecked(slice::from_raw_parts(self.suffix, ptr_len));
@@ -227,7 +262,7 @@ mod tests {
     fn test_from_with_suffix() {
         let s = Str::from(LONG_STR);
 
-        assert_eq!(s.len, LONG_STR.len() as u32);
+        assert_eq!(s.len, LONG_STR.len() as LenType);
         assert_eq!(s.capacity_offset, 0);
         assert_eq!(s.prefix, LONG_STR.as_bytes()[..PREFIX_LENGTH]);
         assert_ne!(s.suffix, null_mut());

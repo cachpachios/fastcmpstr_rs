@@ -13,7 +13,7 @@ Str (size 24, alignment 8)
 | 6      | prefix: [u8; 10]      | 10   |
 | 16     | suffix: *mut u8       | 8    |
 ```
-The size and alignment is the same as String, but we have split the data into a static prefix and a dynamic suffix. The length of the allocated suffix pointer will always be `max(0, len - 10)`.
+The size and alignment is the same as String, but we have split the data into a static prefix and a dynamic suffix. The length of the allocated suffix pointer will always be `max(0, len + capacity_offset - 10)`.
 
 ## Why is this faster at comparision?
 As mentioned above, due to **cache efficiencies**. Lets compare the following:
@@ -22,6 +22,7 @@ Using `std::string::String`:
 ```rust
     let a = String::from("Hi! This is a message from the future!");
     let b = String::from("Hi! This IS a message");
+    //                             ^
 
     if a.starts_with(b) {
         // Do stuff...
@@ -32,14 +33,14 @@ Using our implementation:
 ```rust
     let a = Str::from("Hi! This is a message from the future!");
     let b = Str::from("Hi! This IS a message");
-    //                     ^
+    //                          ^
 
     if a.starts_with(b) {
         // Do stuff...
     }
 ```
 
-Here we need to walk char by char to check the starts_with operation. For `std::string::String` does this mean *TWO* indirections into _potentially_ two very different places in memory. For our implementation and this example where is a difference in the 4th byte, comparing in the stack is enough and we never have to do an indirection (assuming the difference is within the first 10 bytes). 
+Here we need to walk char by char to check the starts_with operation. For `std::string::String` does this mean *TWO* indirections into _potentially_ two very different places in memory. For our implementation and this example where is a difference in the 10th byte, comparing in the stack is enough and we never have to do an indirection
 
 This ofcourse can be even more notable when you have a `Vec<String>` vs `Vec<Str>` and want to find all elements that fullfills any comparision. Using String requires _potentially_ indirection at every step. Our implementation _potentially_ does not.
 
